@@ -22,7 +22,7 @@ for player in nba_players.find():
     # player summary:
     player_career = PlayerCareer(player["PERSON_ID"])
     player_games = PlayerGameLogs(player["PERSON_ID"])
-
+    
     player["games"] = player_games.info()
     player["career"] = player_career.regular_season_career_totals()
     
