@@ -2,7 +2,6 @@ from __future__ import print_function
 from pymongo import MongoClient
 
 
-
 def build_base_compare_data(p1, p2):
     data_keys = ["MIN", "PTS", "AST", "REB", "STL", "BLK", "TOV", "FT_PCT", "FG_PCT", "FG3_PCT", "FTM"]
     compare_data = {}
