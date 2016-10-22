@@ -10,7 +10,7 @@ import os.path
 from nba_py.game import *
 from nba_py.league import *
 from nba_py import _api_scrape
-from player_utils import *
+from predictor_utils import *
 from svm_model import *
 
 # database setting
@@ -23,29 +23,32 @@ all_players = nba_players.find()
 
 game_logs_collection = db["nba_game_logs"]
 
+def get_minute(min):
+    return int( min.split(":")[0] )
 
 def get_player_pairs(players, teams):
     team_1 = []
     team_2 = []
     pairs = []
-    for player in player:
-        if player["TEAM_ID"] == tems[0]["TEAM_ID"]:
+    for player in players:
+        if player["TEAM_ID"] == teams[0]["TEAM_ID"]:
             team_1.append(player)
-        else
+        else:
             team_2.append(player)
 
     for player_1 in team_1:
-        if not is_key_player(player_1["MIN"])
+        if not is_key_player(player_1["MIN"]):
             continue
         
-        player_1_data = nba_players.find({"PERSON_ID": player_1["PLAYER_ID"]} )
+        player_1_data = nba_players.find_one({"PERSON_ID": player_1["PLAYER_ID"]} )
         for player_2 in team_2:
             if not is_key_player(player_2["MIN"]):
                 continue
-            player_2_data = nba_players.find({"PERSON_ID": player_2["PLAYER_ID"]})
+            player_2_data = nba_players.find_one({"PERSON_ID": player_2["PLAYER_ID"]})
             
             if is_pos_match(player_1_data["summary"][0]["POSITION"], player_2_data["summary"][0]["POSITION"]):
-                pairs.append( (player_1_data, player_2_data, player_1["MIN"], player_2["MIN"] ) ) # [player1_data, player2_data, total minutes played]
+                #print(player_1_data["DISPLAY_FIRST_LAST"] + "_" + player_2_data["DISPLAY_FIRST_LAST"])
+                pairs.append( (player_1_data, player_2_data, get_minute(player_1["MIN"]), get_minute(player_2["MIN"]) ) ) # [player1_data, player2_data, total minutes played]
 
     return pairs 
               
@@ -57,40 +60,64 @@ if __name__ == '__main__':
     result = []
     total_games = 500
     correct_counts = 0
+    count = 0
+    svc = get_model()
     for boxscore in season_games["boxscores"][0:total_games]:
         #scorebox = game["boxscore"]
+        print("Predict {0} / {1} - {2}".format(count + 1, total_games, boxscore["parameters"]["GameID"]))
+        
         players = _api_scrape( boxscore, 0 ) 
         teams = _api_scrape( boxscore, 1)
         player_pairs = get_player_pairs(players, teams)
         player_predict_result = []
         total_minutes = 0
         
-        team_1_win = teams["PTS"] >= teams["PTS"]
+        team_1_win = teams[0]["PTS"] >= teams[1]["PTS"]
 
         for pair in player_pairs:
-            compare_data = build_base_compare_data(compare_pair[0], compare_pair[1])
-            minutes = player_pairs[2] + player_pairs[3]
-            total_minutes +=  minutes # sum the minutes and calculate weight later
-            svc = get_model()
-            predict = svc.predict([compare_data])
-            player_predict_result.append((predict, minutes))
+            compare_data = build_base_compare_data(pair[0], pair[1])
+            minutes = pair[2] + pair[3]
+            total_minutes += minutes # sum the minutes and calculate weight later
+            values = order_compare_data(compare_data)[1]
+            #print(compare_data)
+            #print(values)
+            predict = svc.predict([ values ])
+            player_predict_result.append((predict[0], minutes))
 
         # calculate weight average of predict result
-        sum = 0
-        for r in player_predict_result:
-            sum += r[0] * ( r[1] / total_minutes)
+        sum = 0.0
         
-        average_predict = sum / len(player_predict_result) >= 0.5
+        #print(player_predict_result)
+        result_count = len(player_predict_result)
+        for r in player_predict_result:
+            weight = float(r[1]) / 116
+            if r[1] > 60:
+                weight = 1
+            elif r[1] > 30:
+                weight = 0.75
+            else:
+                weight = 0.25
+            sum += float(r[0]) * weight
+        
+        
+        weight_average = sum / result_count
+        average_predict = weight_average >= 0.5
         
         if average_predict == team_1_win:
             correct_counts += 1
-        result.append("Game ID: {0}, Real outcome: {1}, Prediction: {2}, Result: {3}".format(
+
+        result.append("{5} / {6} - Game ID: {0}, Real outcome: {1}, Prediction: {2}, Weight_Average: {3}, Result: {4}".format(
             boxscore["parameters"]["GameID"],
             str(team_1_win),
             str(average_predict),
-            str(team_1_win == average_predict)
+            str(weight_average),
+            str(team_1_win == average_predict),
+            str(count + 1),
+            str(total_games)
         ))
-        
-    print("Accuracy: " + str(correct_counts / total_games))
+
+        count += 1
+    print("\n".join(result))
+    print("Accuracy: " + str( float(correct_counts) / float(total_games)) )
             
             

@@ -51,12 +51,12 @@ if __name__ == '__main__':
         print("There are:" + str(len(game_ids)) + " in this season.")
         count = 0
         for id in game_ids:
-            print("{0} / {1}".format(count, len(game_ids) ) + "Game: " + id)
+            print("{0} / {1} - ".format(count, len(game_ids) ) + "Game: " + id)
             url = base_url.format(id)
             boxscore = requests.get(url, headers=headers)
             season_games["boxscores"].append(boxscore.json())
             count += 1
-        season_games["overall"] = game_log
+        #season_games["overall"] = game_logs
 
         game_logs_collection.insert_one(season_games)
 
