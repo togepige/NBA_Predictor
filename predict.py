@@ -1,76 +1,34 @@
 from __future__ import print_function, division
-from pymongo import MongoClient
 
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 
-from sklearn import svm
-from sklearn.model_selection import KFold, cross_val_score
-from sklearn.externals import joblib
+from pymongo import MongoClient
+from helper import *
 
+from naive_bayes import naive_bayes_model
+from svm import svm_model
 
-import pickle
-import os.path
-
+from numpy.random import *
 from nba_py.game import *
 from nba_py.league import *
 from nba_py import _api_scrape
 from predictor_utils import *
-from svm_model import *
-from numpy.random import *
-# database setting
-# client = MongoClient('localhost', 27017)
-# db = client.local
+
 db = get_db_client()
-
 nba_players = db['nba_players']
-
 player_count = nba_players.count()
 all_players = nba_players.find()
-
 game_logs_collection = db["nba_game_logs"]
 
 default_threshold = 0.5
 default_time_weight= [(70, 1), (50, 0.85), (30, 0.5), (0, 0.15)]
-svc = get_model()
-
-def get_minute(min):
-    return int( min.split(":")[0] )
 
 
-def get_player_comparison(teams):
-    team_1 = teams[0]
-    team_2 = teams[1]
-    comparison = []
-    
-    for player_1 in team_1:
-        player_1_id = player_1[0]
-        player_1_data = nba_players.find_one({"PERSON_ID": player_1_id }, {"games": 0} )
-        if player_1_data is None:
-            continue
-        
-        player_1_min = player_1_data["career"][0]["MIN"]
-        # if the play mintues is set by user
-        if len(player_1) < 2:
-            player_1_min = player_1[1]
-        
-        if not is_key_player(player_1_min):
-            continue
-
-        for player_2 in team_2:
-            player_2_id = player_2[0]
-            player_2_data = nba_players.find_one({"PERSON_ID": player_2_id }, {"games": 0} )
-            if player_2_data is None:
-                continue
-            player_2_min = player_2_data["career"][0]["MIN"]
-            # if the play mintues is set by user
-            if len(player_2) < 2:
-                player_2_min = player_2[1]
-            
-            if is_pos_match(player_1_data["summary"][0]["POSITION"], player_2_data["summary"][0]["POSITION"]):
-                comparison.append( (player_1_data, player_2_data, player_1_min, player_2_min) ) # [player1_data, player2_data, total minutes played]
-            
-    return comparison
+model_cache = {
+    "svm": svm_model.get_model(),
+    "nb": naive_bayes_model.get_model(),
+}
 
 # predict a game 
 # parameters:
@@ -78,12 +36,18 @@ def get_player_comparison(teams):
 #       [(player_id_1, ), (player_id_2, )]
 #       [(player_id_3,), (player_id_4, )]
 #   ]  
-def predict_game(teams, threshold=default_threshold, time_weight=default_time_weight):
+def predict_game(model, teams, threshold=default_threshold, time_weight=default_time_weight):
     # get player career comparison data 
+    predict_model = None
+    if model == "svm":
+        predict_model = model_cache["svm"]
+    elif model == "nb":
+        predict_model = model_cache["nb"]
 
     comparison = get_player_comparison(teams)
     total_minutes = 0
     player_predict_result = []
+    
     for pair in comparison:
         # generate comparison data for prediction
         compare_data = build_base_compare_data(pair[0], pair[1])
@@ -91,9 +55,14 @@ def predict_game(teams, threshold=default_threshold, time_weight=default_time_we
         total_minutes += minutes # sum the minutes and calculate weight later
         values = order_compare_data(compare_data)[1]
 
-        predict = svc.predict([ values ])
-        player_predict_result.append((predict[0], minutes)) # result format: [prediction, total_minutes]
-
+        predict = predict_model.predict([ values ])
+        player_predict_result.append((predict[0], minutes, {
+            "player_1_name": pair[0]["DISPLAY_FIRST_LAST"],
+            "player_2_name": pair[1]["DISPLAY_FIRST_LAST"],
+            "player_1_win": predict[0],
+            "minutes": minutes
+        })) # result format: [prediction, total_minutes]
+    
     # calculate weight average of predict result
     sum = 0.0
     result_count = len(player_predict_result)
@@ -103,6 +72,7 @@ def predict_game(teams, threshold=default_threshold, time_weight=default_time_we
             if r[1] >= weight[0]:
                 weight_value = weight[1]
                 break
+        r[2]["weight"] = weight_value
         sum += float(r[0]) * weight_value
 
 
@@ -110,10 +80,10 @@ def predict_game(teams, threshold=default_threshold, time_weight=default_time_we
     weight_average = sum / result_count
     average_predict = weight_average >= threshold
     
-    return (weight_average, average_predict)
+    return (weight_average, average_predict, player_predict_result)
 
     
-def predict_season_result(season, sample_size=500, threshold=default_threshold, time_weight=default_time_weight ):
+def predict_season_result(model, season, sample_size=500, threshold=default_threshold, time_weight=default_time_weight ):
     game_ids = set()
     season_games = game_logs_collection.find_one({"season": season})
     result = []
@@ -136,7 +106,7 @@ def predict_season_result(season, sample_size=500, threshold=default_threshold, 
             else:
                 team_2.append((player["PLAYER_ID"], player["MIN"]))
         
-        prediction = predict_game([team_1, team_2], threshold, time_weight)
+        prediction = predict_game(model, [team_1, team_2], threshold, time_weight)
         weight_average = prediction[0]
         average_predict = prediction[1]
         team_1_win = teams[0]["PTS"] >= teams[1]["PTS"]
@@ -145,7 +115,17 @@ def predict_season_result(season, sample_size=500, threshold=default_threshold, 
             correct_counts += 1
         
 
-        prediction_result.append([boxscore["parameters"]["GameID"], weight_average, average_predict, team_1_win, team_1_win == average_predict])
+        prediction_result.append([boxscore["parameters"]["GameID"], weight_average, average_predict, team_1_win, team_1_win == average_predict,
+            {
+                "team_1_name": teams[0]["TEAM_NAME"],
+                "team_2_name": teams[1]["TEAM_NAME"],
+                "weight_average": weight_average,
+                "average_prediction": average_predict,
+                "result": team_1_win,
+                "correctness": team_1_win == average_predict,
+                "player_comparison": prediction[2]
+            }
+        ])
         result.append("{5} / {6} - Game ID: {0}, Real outcome: {1}, Prediction: {2}, Weight_Average: {3}, Result: {4}".format(
             boxscore["parameters"]["GameID"],
             str(team_1_win),
@@ -165,6 +145,16 @@ def predict_season_result(season, sample_size=500, threshold=default_threshold, 
 
 if __name__ == '__main__':
     season = "2015-16"
+    model = "SVM"
 
-    result = predict_season_result("2015-16", sample_size=1000)
-    print(str(result))
+    if len(sys.argv) >= 4:
+        season = sys.argv[1]
+        sample_size = int(sys.argv[2])
+        model = sys.argv[3]
+    else:
+        print("Required arguments: season model")
+        sys.exit()
+    
+    result = predict_season_result(model, season, sample_size=sample_size)
+
+    #print(str(result))

@@ -26,24 +26,26 @@ You can run the prediction by creating a testcase folder, passing parameters thr
 ## 1. Use testcase folder
 1. Create a folder with `testcase_1` under folder `result`
 2. Create a `parameters.json` to specify the testcase     
-3. Run `python .\svm\svm_predict_helper.py`
+3. Run `python .\predict_testcase.py svm`
 4. You can see the summary in `summary.json` file and detail prediction result in `svm_detail` folder
 
   
 ## 2. Run with command line season and sampling size parameter
-1. Run `python .\svm\svm_predict.py 2015-16 200`
+1. Run `python .\_predict.py 2015-16 200 svm`
 2. The first parameter is the season 
-3. The second parameter is the sampling size 
+3. The second parameter is the sampling size
+4. The third parameter is the model name 
 
 
 ## 3. Import the predict function
-1. Include `from svm_predict import predict_game` in your python file
-2. Call `predict_game(teams, threshold, time_weight)` function
-3. The first parameter is an array with two elements. Element should be in an array of tuple `[(player_id, min), (player_id, )]`. The first element is the player id and the second element is optional and is the minutes the player plays in this game
-4. The second parameter is prediction threshold. It means only the prediction result(float) which is bigger that the threshold will be considered as winning
-5. The third parameter is time weight. The format is `[(70, 1), (50, 0.85), (30, 0.5), (0, 0.15)]`. It means two players play more than 70 minutes will be assigned weight 1 and two players play more than 50 minutes will be assigned 0.85 weight.
+1. Include `import predict_game` in your python file
+2. Call `predict_game(model, teams, threshold, time_weight)` function
+3. The first parameter is the model name
+4. The second parameter is an array with two elements. Element should be in an array of tuple `[(player_id, min), (player_id, )]`. The first element is the player id and the second element is optional and is the minutes the player plays in this game
+5. The third parameter is prediction threshold. It means only the prediction result(float) which is bigger that the threshold will be considered as winning
+6. The fourth parameter is time weight. The format is `[(70, 1), (50, 0.85), (30, 0.5), (0, 0.15)]`. It means two players play more than 70 minutes will be assigned weight 1 and two players play more than 50 minutes will be assigned 0.85 weight.
 
-## Note
-1. You can use Naive Bayes classifier in the same way
+## Notes
+1. You can use Naive Bayes classifier in the same way, model name is `nb` or `svm`
 2. You can have multiple testcases folder
 3. You can find an example testcase under in `result` folder
