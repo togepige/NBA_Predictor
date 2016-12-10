@@ -1,6 +1,6 @@
 {
     "seasons": ["2015-16", "2014-15", "2016-17"],
-    "sample_size": 5,
+    "sample_size": 300,
     "time_weight": [
         [
             [60, 1],

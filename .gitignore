@@ -1,2 +1,4 @@
 r.txt
 *.pyc
+result/*/*_summary.json
+result/*/*_detail/*
