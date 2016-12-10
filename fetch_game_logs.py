@@ -1,12 +1,16 @@
 # Use this file to fetch game data into local mongodb
 # Currently nba_py is not working with the version 1 api because nba stats moves to version 2
 # so I use requests to fetch the data with version 2 api
+
 from __future__ import print_function
 from pymongo import MongoClient
 from nba_py.game import *
 from nba_py.league import *
+from helper import *
+import sys
 import requests
 
+config_ = get_config()
 if __name__ == '__main__':
 
     headers = {'user-agent': ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) '
@@ -15,15 +19,20 @@ if __name__ == '__main__':
             }
 
     # get player list
-    seasons = ['2015-16']
+    seasons = ['2015-16', '2014-15', '2013-14', '2012-13', '2011-12']
+    if len(sys.argv) >= 2:
+        seasons = [ sys.argv[1] ]
+
 
     base_url = "http://stats.nba.com/stats/boxscoretraditionalv2?GameID={0}&RangeType=0&StartPeriod=0&StartRange=0&EndPeriod=0&EndRange=0"
 
     print("start fetching game logs...")
 
     # database setting
-    client = MongoClient('localhost', 27017)
-    db = client.local
+    # client = MongoClient(config["url"], 27017)
+    # db = client[config["db"]]
+    db = get_db_client()
+    
     nba_players = db['nba_players']
 
     player_count = nba_players.count()

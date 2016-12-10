@@ -3,6 +3,7 @@
 from __future__ import print_function
 from pymongo import MongoClient
 from predictor_utils import *
+from helper import *
 
 def get_game_index_map(player):
     map = {}
@@ -18,8 +19,10 @@ def get_pos(player):
 
 if __name__ == '__main__':
     # database setting
-    client = MongoClient('localhost', 27017)
-    db = client.local
+    # client = MongoClient('localhost', 27017)
+    # db = client.local
+    db = get_db_client()
+    
     nba_players = db['nba_players']
 
     player_count = nba_players.count()

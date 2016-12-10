@@ -1,13 +1,16 @@
 # Fetch player data into local mongodb
 # It will fetch all player' summary, career and game logs together
+
 from __future__ import print_function
 from pymongo import MongoClient
 from nba_py.player import *
+from helper import *
 
 if __name__ == '__main__':
     # database setting
-    client = MongoClient('localhost', 27017)
-    db = client.local
+    # client = MongoClient('localhost', 27017)
+    # db = client.local
+    db = get_db_client()
 
     nba_players = db['nba_players']
     nba_player_careers = db['nba_player_careers']

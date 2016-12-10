@@ -3,12 +3,14 @@
 from __future__ import print_function
 from pymongo import MongoClient
 from predictor_utils import *
+from helper import *
 
 if __name__ == '__main__':
     # database setting
     client = MongoClient('localhost', 27017)
-    db = client.local
-    nba_players = db['nba_players']
+    # db = client.local
+    # nba_players = db['nba_players']
+    db = get_db_client()
     compare_data_collection = db["nba_compare_data"]
 
     compare_data = compare_data_collection.find({}, {"_id": 0, "player_id_1": 0, "player_id": 0})
