@@ -1,9 +1,10 @@
 from __future__ import print_function, division
-import json
+import json, os, sys
 from pymongo import MongoClient
 
 def get_config():
-    with open('dbconfig.json') as config_file:    
+    config_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "dbconfig.json"))
+    with open(config_file_path) as config_file:    
         config = json.load(config_file)
         return config
 
