@@ -47,7 +47,8 @@ def extract_result(result, season, time_weight, threshold):
 
     for pred in result[1]:
         temp = pred[5]
-        temp["player_comparison"] = extract_player(temp)
+        #temp["player_comparison"] = extract_player(temp)
+        temp.pop("player_comparison")
         prediction.append(temp)
     #print(prediction)
     prediction_result = {
